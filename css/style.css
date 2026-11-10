@@ -1,0 +1,378 @@
+
+:root {
+    --bg: #090D0A;
+    --card: #121A14;
+    --card2: #19231B;
+    --green: #B6F5C5;
+    --text: #F5F8F5;
+    --muted: #89958B;
+    --border: rgba(255,255,255,.08);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    min-height: 100dvh;
+    background:
+    radial-gradient(ellipse at 50% -20%, #203A28, transparent 60%),
+    var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+    border: none;
+}
+
+.app {
+    max-width: 520px;
+    min-height: 100dvh;
+    margin: auto;
+    padding: max(15px, env(safe-area-inset-top))
+    18px
+    calc(100px + env(safe-area-inset-bottom));
+}
+
+.header {
+    height: 55px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.brand-logo {
+    width: 37px;
+    height: 37px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    color: #07130A;
+    background: var(--green);
+}
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.icon-btn {
+    width: 39px;
+    height: 39px;
+    color: var(--text);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+#app {
+    min-height: 400px;
+}
+
+.screen {
+    display: flex;
+    flex-direction: column;
+    gap: 19px;
+}
+
+h1 {
+    font-size: clamp(31px, 8vw, 43px);
+    line-height: 1.1;
+    letter-spacing: -1.6px;
+}
+
+h2 {
+    font-size: 26px;
+    letter-spacing: -.8px;
+}
+
+h3 {
+    font-size: 16px;
+}
+
+p {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+.eyebrow {
+    color: var(--green);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 2px;
+}
+
+.hero {
+    min-height: 490px;
+    justify-content: center;
+}
+
+.hero-orb {
+    width: 155px;
+    height: 155px;
+    align-self: center;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%,
+    #E0FFE8, #8DDBA1 15%, #285D36 45%,
+    transparent 72%);
+    box-shadow: 0 0 70px rgba(125,230,153,.18);
+}
+
+.card {
+    padding: 21px;
+    background: linear-gradient(145deg, #1A291D, #111812);
+    border: 1px solid var(--border);
+    border-radius: 23px;
+}
+
+.card-muted {
+    padding: 17px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 17px;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.button-primary {
+    width: 100%;
+    min-height: 56px;
+    padding: 16px;
+    background: var(--green);
+    color: #07130A;
+    font-weight: 800;
+    border-radius: 17px;
+    transition: .2s;
+}
+
+.button-primary:active {
+    transform: scale(.97);
+}
+
+.button-primary:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+
+.button-secondary {
+    width: 100%;
+    min-height: 52px;
+    padding: 14px;
+    background: var(--card2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    font-weight: 700;
+}
+
+.status {
+    width: fit-content;
+    padding: 7px 11px;
+    border-radius: 20px;
+    color: var(--green);
+    background: rgba(182,245,197,.1);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.big-number {
+    font-size: 39px;
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+.price {
+    font-size: 27px;
+    font-weight: 800;
+}
+
+.progress {
+    height: 6px;
+    background: #303A32;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: inherit;
+}
+
+.plan {
+    border: 1px solid var(--border);
+    transition: .2s;
+}
+
+.plan.selected {
+    border-color: var(--green);
+    background: #1A2B1E;
+}
+
+.badge-popular {
+    padding: 5px 8px;
+    background: rgba(182,245,197,.12);
+    color: var(--green);
+    border-radius: 7px;
+    font-size: 10px;
+}
+
+.link-field {
+    padding: 15px;
+    overflow-wrap: anywhere;
+    background: rgba(182,245,197,.04);
+    border: 1px dashed rgba(182,245,197,.3);
+    border-radius: 13px;
+    color: var(--green);
+    font-size: 12px;
+}
+
+.step {
+    display: flex;
+    gap: 13px;
+    align-items: center;
+}
+
+.step-number {
+    flex-shrink: 0;
+    width: 31px;
+    height: 31px;
+    display: grid;
+    place-items: center;
+    background: var(--card2);
+    color: var(--green);
+    border-radius: 50%;
+    font-weight: 800;
+}
+
+.device {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.device-icon {
+    width: 43px;
+    height: 43px;
+    display: grid;
+    place-items: center;
+    background: var(--card2);
+    border-radius: 13px;
+    font-size: 20px;
+}
+
+.device-info {
+    flex: 1;
+}
+
+.device-info p {
+    font-size: 11px;
+}
+
+.text-btn {
+    background: transparent;
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(100%, 520px);
+    padding: 10px 5px calc(10px + env(safe-area-inset-bottom));
+display: flex;
+    justify-content: space-around;
+    background: rgba(10,16,11,.94);
+    backdrop-filter: blur(22px);
+    border-top: 1px solid var(--border);
+    z-index: 20;
+}
+
+.nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    color: var(--muted);
+}
+
+.nav-btn span {
+    font-size: 22px;
+}
+
+.nav-btn small {
+    font-size: 10px;
+}
+
+.nav-btn.active {
+    color: var(--green);
+}
+
+.toast {
+    position: fixed;
+    z-index: 50;
+    bottom: 90px;
+    left: 50%;
+    transform: translate(-50%, 15px);
+    opacity: 0;
+    pointer-events: none;
+    padding: 13px 18px;
+    background: #243329;
+    border-radius: 13px;
+    font-size: 13px;
+    transition: .25s;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.empty {
+    padding: 30px 15px;
+    text-align: center;
+}
+
+@media (max-height: 700px) {
+    .hero {
+        min-height: 350px;
+    }
+
+    .hero-orb {
+        width: 110px;
+        height: 110px;
+    }
+}
