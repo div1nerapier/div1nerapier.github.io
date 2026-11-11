@@ -2,8 +2,10 @@
 import { CONFIG, TEXT } from "./config.js";
 
 import {
+loadData,
 getData,
 getSubscription,
+getDaysLeft,
 activateTrial,
 buyDemoPlan,
 addDevice,
@@ -13,18 +15,39 @@ setLanguage
 
 import { renderScreen } from "./screens.js";
 
+import {
+initTelegram,
+getTelegramUser
+} from "./telegram.js";
+
+
 const app = document.querySelector("#app");
 const nav = document.querySelector("#bottomNav");
 const toast = document.querySelector("#toast");
 
-const tg = window.Telegram?.WebApp;
+const tg = initTelegram();
+const user = getTelegramUser();
 
 let currentScreen = "welcome";
 let selectedPlan = CONFIG.plans[1].id;
 
-function notify(message) {
+let isLoading = false;
+
+
+// =========================
+// NOTIFICATIONS
+// =========================
+
+function notify(message, type = "success") {
+
     toast.textContent = message;
-    toast.classList.add("show");
+
+    toast.classList.remove("show");
+    toast.dataset.type = type;
+
+    requestAnimationFrame(() => {
+        toast.classList.add("show");
+    });
 
     clearTimeout(notify.timer);
 
@@ -32,25 +55,55 @@ function notify(message) {
         toast.classList.remove("show");
     }, 2500);
 
-    tg?.HapticFeedback?.notificationOccurred("success");
+    tg?.HapticFeedback?.notificationOccurred(
+        type === "error" ? "error" : "success"
+    );
 }
+
+
+// =========================
+// TRANSLATIONS
+// =========================
 
 function t(key) {
+
     const language = getData().language;
-    return TEXT[language][key] || TEXT.ru[key];
+
+    return TEXT[language]?.[key]
+    || TEXT.ru[key]
+    || key;
 }
+
+
+// =========================
+// NAVIGATION
+// =========================
 
 function navigate(screen) {
+
     currentScreen = screen;
+
     render();
+
+    if (tg) {
+        tg.HapticFeedback?.selectionChanged();
+    }
 }
 
+
 function render() {
+
+    if (isLoading) return;
+
     const sub = getSubscription();
 
-    // После первого знакомства показываем кабинет.
-    if (currentScreen === "welcome" && getData().trialUsed) {
-        currentScreen = sub?.active ? "dashboard" : "pricing";
+    if (
+    currentScreen === "welcome"
+    && getData().trialUsed
+    ) {
+        currentScreen = sub?.active
+        ? "dashboard"
+        : "pricing";
     }
 
     app.innerHTML = renderScreen(
@@ -58,188 +111,497 @@ function render() {
         selectedPlan
     );
 
-    nav.hidden = ![
+    const navigationScreens = [
         "dashboard",
         "connection",
         "devices",
         "pricing"
-    ].includes(currentScreen);
+    ];
+
+    nav.hidden = !navigationScreens.includes(
+        currentScreen
+    );
 
     document.querySelectorAll(".nav-btn").forEach(btn => {
+
         btn.classList.toggle(
             "active",
             btn.dataset.screen === currentScreen
         );
+
     });
 
     document.querySelectorAll("[data-i18n]").forEach(el => {
-        el.textContent = t(el.dataset.i18n);
+
+        el.textContent = t(
+            el.dataset.i18n
+        );
+
     });
 
-    document.querySelector("#brandName").textContent =
-    CONFIG.brand.name;
+    const brand = document.querySelector("#brandName");
+
+    if (brand) {
+        brand.textContent = CONFIG.brand.name;
+    }
+
+    const languageButton = document.querySelector(
+        "#languageBtn"
+    );
+
+    if (languageButton) {
+        languageButton.textContent =
+        getData().language.toUpperCase();
+    }
 
     if (tg) {
-        if (["welcome", "activation", "success"].includes(currentScreen)) {
+
+        if (
+        ["welcome", "activation", "success"].includes(
+            currentScreen
+        )
+        ) {
             tg.BackButton.hide();
         } else {
             tg.BackButton.show();
         }
+
     }
 }
 
+
+// =========================
+// BACK BUTTON
+// =========================
+
+function goBack() {
+
+    const backScreens = {
+        payment: "pricing",
+        connection: "dashboard",
+        devices: "dashboard",
+        pricing: "dashboard",
+        support: "dashboard",
+        history: "dashboard",
+        success: "connection",
+        activation: "welcome"
+    };
+
+    navigate(
+        backScreens[currentScreen] || "dashboard"
+    );
+}
+
+
+// =========================
+// HAPP CONNECTION
+// =========================
+
 function openHapp() {
-    if (!getSubscription()?.active) {
-        notify(t("inactive"));
+
+    const sub = getSubscription();
+
+    if (!sub?.active) {
+        notify(t("inactive"), "error");
         return;
     }
 
-    if (!CONFIG.happ.link) {
-        notify("Сначала настрой ссылку HAPP в config.js");
+    const link = sub.url;
+
+    if (!link) {
+        notify(
+            "Персональная ссылка пока не выдана",
+            "error"
+        );
         return;
     }
 
     if (tg) {
-        tg.openLink(CONFIG.happ.link);
+        tg.openLink(link);
     } else {
-        window.open(CONFIG.happ.link, "_blank", "noopener,noreferrer");
+        window.open(
+            link,
+            "_blank",
+            "noopener,noreferrer"
+        );
     }
 }
 
+
+// =========================
+// COPY LINK
+// =========================
+
 async function copyLink() {
-    const link = CONFIG.happ.link;
+
+    const link = getSubscription()?.url;
 
     if (!link) {
-        notify("Ссылка пока не настроена");
+        notify(
+            "Ссылка пока не настроена",
+            "error"
+        );
         return;
     }
 
     try {
+
         await navigator.clipboard.writeText(link);
+
         notify(t("copied"));
+
     } catch {
-        notify("Не удалось скопировать ссылку");
+
+        notify("Не удалось скопировать ссылку", "error");
+
     }
 }
 
-document.addEventListener("click", event => {
-    const screenButton = event.target.closest("[data-screen]");
+
+// =========================
+// ACTION HANDLER
+// =========================
+
+document.addEventListener("click", async event => {
+
+    const screenButton = event.target.closest(
+        "[data-screen]"
+    );
 
     if (screenButton) {
+
         navigate(screenButton.dataset.screen);
+
         return;
     }
 
-    const button = event.target.closest("[data-action]");
+    const button = event.target.closest(
+        "[data-action]"
+    );
 
-    if (!button) return;
+    if (!button || button.disabled) return;
 
     const action = button.dataset.action;
 
     switch (action) {
 
+        // ---------------------
+        // WELCOME
+        // ---------------------
+
         case "activation":
+
             navigate("activation");
+
             break;
+
+
+        // ---------------------
+        // TRIAL
+        // ---------------------
 
         case "activate": {
-            const result = activateTrial();
+
+            button.disabled = true;
+
+            const result = await activateTrial();
+
+            button.disabled = false;
 
             if (result.success) {
+
+                notify("Пробный период активирован");
+
                 navigate("success");
+
             } else {
-                notify(t("trialUsed"));
+
+                notify(
+                    result.reason || t("trialUsed"),
+                    "error"
+                );
+
             }
+
             break;
         }
+
+
+        // ---------------------
+        // CONNECTION
+        // ---------------------
 
         case "connection":
+
             navigate("connection");
+
             break;
+
 
         case "open-happ":
+
             openHapp();
+
             break;
+
 
         case "copy-link":
-            copyLink();
+
+            await copyLink();
+
             break;
+
+
+        // ---------------------
+        // PLANS
+        // ---------------------
 
         case "select-plan":
+
             selectedPlan = button.dataset.id;
+
             render();
+
             break;
+
 
         case "checkout":
+
+            if (!CONFIG.plans.some(
+                plan => plan.id === selectedPlan
+            )) {
+                notify("Выбери тариф", "error");
+                break;
+            }
+
             navigate("payment");
+
             break;
+
+
+        // ---------------------
+        // PAYMENT
+        // ---------------------
 
         case "pay":
-            if (buyDemoPlan(selectedPlan)) {
-                notify("Демо-оплата успешна");
-                navigate("dashboard");
-            }
+
+            notify(
+                "Платёжная система пока не подключена",
+                "error"
+            );
+
             break;
 
-        case "add-device":
-            if (addDevice()) {
+
+        // ---------------------
+        // DEVICES
+        // ---------------------
+
+        case "add-device": {
+
+            button.disabled = true;
+
+            const success = await addDevice();
+
+            if (success) {
                 notify("Устройство добавлено");
             } else {
-                notify("Достигнут лимит устройств");
+                notify(
+                    "Не удалось добавить устройство",
+                    "error"
+                );
             }
+
             render();
-            break;
 
-        case "remove-device":
-            removeDevice(button.dataset.id);
-            notify("Устройство удалено");
-            render();
-            break;
-
-        case "support-link": {
-            const username = CONFIG.brand.support;
-
-            if (username) {
-                const url = "https://t.me/" + username;
-
-                if (tg) tg.openTelegramLink(url);
-                else window.open(url, "_blank", "noopener,noreferrer");
-            } else {
-                notify("Поддержка не настроена");
-            }
             break;
         }
+
+
+        case "remove-device": {
+
+            button.disabled = true;
+
+            const success = await removeDevice(
+                button.dataset.id
+            );
+
+            if (success) {
+                notify("Устройство удалено");
+            } else {
+                notify(
+                    "Не удалось удалить устройство",
+                    "error"
+                );
+            }
+
+            render();
+
+            break;
+        }
+
+
+        // ---------------------
+        // SUPPORT
+        // ---------------------
+
+        case "support-link": {
+
+            const username = CONFIG.brand.support;
+
+            if (!username) {
+                notify("Поддержка не настроена", "error");
+                break;
+            }
+
+            const url = "https://t.me/" + username;
+
+            if (tg) {
+                tg.openTelegramLink(url);
+            } else {
+                window.open(
+                    url,
+                    "_blank",
+                    "noopener,noreferrer"
+                );
+            }
+
+            break;
+        }
+
     }
+
 });
 
-document.querySelector("#languageBtn").addEventListener("click", () => {
+
+// =========================
+// LANGUAGE
+// =========================
+
+document.querySelector(
+    "#languageBtn"
+)?.addEventListener("click", () => {
+
     if (CONFIG.language !== "both") return;
 
-    const language = getData().language === "ru" ? "en" : "ru";
+    const language =
+    getData().language === "ru"
+    ? "en"
+    : "ru";
 
     setLanguage(language);
 
-    document.querySelector("#languageBtn").textContent =
-    language.toUpperCase();
-
     render();
+
+    notify(
+        language === "ru"
+        ? "Язык изменён на русский"
+        : "Language changed to English"
+    );
+
 });
 
+
+// =========================
+// TELEGRAM
+// =========================
+
 if (tg) {
-    tg.ready();
-    tg.expand();
 
     try {
+
         tg.setHeaderColor("#090D0A");
         tg.setBackgroundColor("#090D0A");
 
-        tg.BackButton.onClick(() => {
-            navigate("dashboard");
-        });
-    } catch {}
+        tg.BackButton.onClick(goBack);
+
+    } catch (error) {
+
+        console.error(
+            "Telegram initialization error:",
+            error
+        );
+
+    }
+
 }
 
-document.querySelector("#languageBtn").textContent =
-getData().language.toUpperCase();
 
-render();
+// =========================
+// INITIALIZATION
+// =========================
+
+async function startApp() {
+
+    if (isLoading) return;
+
+    isLoading = true;
+
+    app.innerHTML = `
+        <div class="loading">
+            Загрузка NOVA...
+        </div>
+    `;
+
+    try {
+
+        if (!tg || !tg.initData) {
+            throw new Error(
+                "Открой приложение через Telegram"
+            );
+        }
+
+        if (!user) {
+            throw new Error(
+                "Не удалось получить Telegram-пользователя"
+            );
+        }
+
+        await loadData();
+
+        isLoading = false;
+
+        render();
+
+        console.log(
+            "NOVA initialized:",
+            user
+        );
+
+    } catch (error) {
+
+        console.error(error);
+
+        isLoading = false;
+
+        app.innerHTML = `
+            <section class="screen">
+                <div class="hero-orb"></div>
+
+                <h2>Ошибка подключения</h2>
+
+                <p>
+                    ${error.message}
+                </p>
+
+                <button
+                    class="button-primary"
+                    id="retryButton"
+                >
+                    Повторить
+                </button>
+            </section>
+        `;
+
+        document.querySelector(
+            "#retryButton"
+        )?.addEventListener(
+            "click",
+            startApp
+        );
+
+    }
+
+}
+
+startApp();

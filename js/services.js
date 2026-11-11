@@ -1,7 +1,8 @@
 
 import { CONFIG } from "./config.js";
+import { getTelegramInitData } from "./telegram.js";
 
-const KEY = "nova_demo_v3";
+const API = "https://ТВОЙ-BACKEND-ДОМЕН";
 
 const initial = {
     language: CONFIG.defaultLanguage,
@@ -11,48 +12,79 @@ const initial = {
     payments: []
 };
 
-let state;
+let state = { ...initial };
 
-try {
-    state = {
-        ...initial,
-        ...JSON.parse(localStorage.getItem(KEY) || "{}")
-    };
-} catch {
-    state = { ...initial };
+async function request(path, options = {}) {
+    const initData = getTelegramInitData();
+
+    if (!initData) {
+        throw new Error("Открой NOVA через Telegram");
+    }
+
+    const response = await fetch(API + path, {
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+        }
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(result.detail || "Ошибка сервера");
+    }
+
+    return result;
 }
 
-function save() {
-    localStorage.setItem(KEY, JSON.stringify(state));
+function updateState(data) {
+    const sub = data.subscription;
+
+    state = {
+        language: data.language || CONFIG.defaultLanguage,
+        trialUsed: data.trialUsed,
+        subscription: sub ? {
+            active: Boolean(sub.active) &&
+            sub.expires_at > Date.now() / 1000,
+            type: sub.type,
+            startedAt: sub.started_at * 1000,
+            expiresAt: sub.expires_at * 1000,
+            url: sub.url
+        } : null,
+        devices: data.devices || [],
+        payments: (data.payments || []).map(p => ({
+            id: p.id,
+            plan: p.plan,
+            amount: p.amount,
+            date: p.created_at * 1000,
+            status: p.status
+        }))
+    };
+}
+
+export async function loadData() {
+    const data = await request("/api/me", {
+        method: "POST",
+        body: JSON.stringify({
+            initData: getTelegramInitData()
+        })
+    });
+
+    updateState(data);
+
+    return getData();
 }
 
 export function getData() {
     return structuredClone(state);
 }
 
-export function t(key) {
-    const lang = state.language === "en" ? "en" : "ru";
-    return CONFIG_TEXT()[lang][key] || key;
-}
-
-function CONFIG_TEXT() {
-    return TEXT;
-}
-
-// Импорт переводов
-import { TEXT } from "./config.js";
-
-export function setLanguage(language) {
-    state.language = language;
-    save();
-}
-
 export function getSubscription() {
     const sub = state.subscription;
 
-    if (sub?.active && sub.expiresAt <= Date.now()) {
+    if (sub && sub.expiresAt <= Date.now()) {
         sub.active = false;
-        save();
     }
 
     return sub;
@@ -69,91 +101,65 @@ export function getDaysLeft() {
     );
 }
 
-export function activateTrial() {
-    if (!CONFIG.trial.enabled) {
-        return { success: false, reason: "disabled" };
+export async function activateTrial() {
+    try {
+        await request("/api/trial", {
+            method: "POST",
+            body: JSON.stringify({
+                initData: getTelegramInitData()
+            })
+        });
+
+        await loadData();
+
+        return { success: true };
+    } catch (error) {
+        return {
+            success: false,
+            reason: error.message
+        };
     }
-
-    if (state.trialUsed) {
-        return { success: false, reason: "used" };
-    }
-
-    createSubscription("trial", CONFIG.trial.days);
-
-    state.trialUsed = true;
-    save();
-
-    return { success: true };
 }
 
-function createSubscription(type, days) {
-    const now = Date.now();
+export async function addDevice() {
+    try {
+        const name = "Устройство " + (state.devices.length + 1);
 
-    state.subscription = {
-        active: true,
-        type,
-        startedAt: now,
-        expiresAt: now + days * 86400000,
-        url: null
-    };
-}
+        await request(
+            "/api/devices?init_data=" +
+            encodeURIComponent(getTelegramInitData()) +
+            "&name=" + encodeURIComponent(name),
+            { method: "POST" }
+        );
 
-export function buyDemoPlan(planId) {
-    const plan = CONFIG.plans.find(p => p.id === planId);
-
-    if (!plan) return false;
-
-    const current = getSubscription();
-    const now = Date.now();
-
-    // Продлеваем от текущей даты окончания,
-    // если подписка ещё действует.
-    const start = current?.active
-    ? current.expiresAt
-    : now;
-
-    state.subscription = {
-        active: true,
-        type: plan.id,
-        startedAt: now,
-        expiresAt: start + plan.days * 86400000,
-        url: null
-    };
-
-    state.payments.unshift({
-        id: "DEMO-" + Date.now(),
-        plan: plan.name,
-        amount: plan.price,
-        date: now,
-        status: "demo"
-    });
-
-    save();
-
-    return true;
-}
-
-export function addDevice() {
-    if (state.devices.length >= CONFIG.devices.limit) {
+        await loadData();
+        return true;
+    } catch {
         return false;
     }
-
-    state.devices.push({
-        id: crypto.randomUUID(),
-        name: "Устройство " + (state.devices.length + 1),
-        date: Date.now()
-    });
-
-    save();
-    return true;
 }
 
-export function removeDevice(id) {
-    state.devices = state.devices.filter(d => d.id !== id);
-    save();
+export async function removeDevice(id) {
+    try {
+        await request(
+            "/api/devices/" + encodeURIComponent(id) +
+            "?init_data=" +
+            encodeURIComponent(getTelegramInitData()),
+            { method: "DELETE" }
+        );
+
+        await loadData();
+        return true;
+    } catch {
+        return false;
+    }
 }
 
-export function resetDemo() {
-    state = structuredClone(initial);
-    save();
+export function setLanguage(language) {
+    state.language = language;
+    localStorage.setItem("nova_language", language);
+}
+
+export async function buyDemoPlan() {
+    return false;
 }
