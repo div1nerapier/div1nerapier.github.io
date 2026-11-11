@@ -2,7 +2,7 @@
 import { CONFIG } from "./config.js";
 import { getTelegramInitData } from "./telegram.js";
 
-const API = "https://ТВОЙ-BACKEND-ДОМЕН";
+const API = "http://195.123.6.126";
 
 const initial = {
     language: CONFIG.defaultLanguage,
